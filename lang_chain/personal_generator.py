@@ -1,27 +1,38 @@
-from langchain_openai import ChatOpenAI
+import operator
+from typing import Annotated, Any, Optional
+
+from dotenv import load_dotenv
+from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
+from pydantic import BaseModel, Field
+
 from objects.persona import Personas
 
 
-class PersonalGenerator:
+class PersonaGenerator:
     def __init__(self, llm: ChatOpenAI, k: int = 5):
-        self.llm = llm.with_structed_output(Personas)
+        self.llm = llm.with_structured_output(Personas)
         self.k = k
 
     def run(self, user_request: str) -> Personas:
+        # プロンプトテンプレートを定義
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "You are a specialist who creates diverse personas for user interviews. "
-                    "Generate personas that are varied in terms of age, gender, occupation, and technical domain knowledge."),
+                    "あなたはユーザーインタビュー用の多様なペルソナを作成する専門家です。",
+                ),
                 (
                     "human",
-                    f"Create {self.k} different personas based on the following user request:\n\n"
-                    "User's request: {user_request}\n\n"
-                    "For each persona, include a name and brief background. Ensure diversity in age, gender, occupation, and technical domain knowledge."
+                    f"以下のユーザーリクエストに関するインタビュー用に、{self.k}人の多様なペルソナを生成してください。\n\n"
+                    "ユーザーリクエスト: {user_request}\n\n"
+                    "各ペルソナには名前と簡単な背景を含めてください。年齢、性別、職業、技術的専門知識において多様性を確保してください。",
                 ),
             ]
         )
+        # ペルソナ生成のためのチェーンを作成
         chain = prompt | self.llm
+        # ペルソナを生成
         return chain.invoke({"user_request": user_request})

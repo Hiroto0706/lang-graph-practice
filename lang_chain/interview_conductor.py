@@ -1,7 +1,12 @@
-from typing import List
+import operator
+from typing import Annotated, Any, Optional
+
+from dotenv import load_dotenv
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.schema.output_parser import StrOutputParser
+from langgraph.graph import END, StateGraph
+from pydantic import BaseModel, Field
 
 from objects.interview import Interview, InterviewResult
 from objects.persona import Persona
@@ -11,83 +16,87 @@ class InterviewConductor:
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
 
-    def run(self, user_request: str, personas: List[Persona]) -> InterviewResult:
+    def run(self, user_request: str, personas: list[Persona]) -> InterviewResult:
+        # 質問を生成
         questions = self._generate_questions(
             user_request=user_request, personas=personas
         )
-
+        # 回答を生成
         answers = self._generate_answers(
             personas=personas, questions=questions)
+        # 質問と回答の組み合わせからインタビューリストを作成
         interviews = self._create_interviews(
             personas=personas, questions=questions, answers=answers
         )
-
+        # インタビュー結果を返す
         return InterviewResult(interviews=interviews)
 
     def _generate_questions(
-            self, user_request: str, personas: List[Persona]
-    ) -> List[str]:
+        self, user_request: str, personas: list[Persona]
+    ) -> list[str]:
+        # 質問生成のためのプロンプトを定義
         question_prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "You're a specialist who creates questions related to the user's requirements."
+                    "あなたはユーザー要件に基づいて適切な質問を生成する専門家です。",
                 ),
                 (
                     "human",
-                    "Please create a question following the user's request related to the persona\n\n"
-                    "User's request: {use_request}\n\n"
-                    "Persona: {persona_name} - {persona_background}\n\n"
-                    "Your question must be specific to extract important information from the persona."
+                    "以下のペルソナに関連するユーザーリクエストについて、1つの質問を生成してください。\n\n"
+                    "ユーザーリクエスト: {user_request}\n"
+                    "ペルソナ: {persona_name} - {persona_background}\n\n"
+                    "質問は具体的で、このペルソナの視点から重要な情報を引き出すように設計してください。",
                 ),
             ]
         )
-
+        # 質問生成のためのチェーンを作成
         question_chain = question_prompt | self.llm | StrOutputParser()
 
+        # 各ペルソナに対する質問クエリを作成
         question_queries = [
             {
                 "user_request": user_request,
                 "persona_name": persona.name,
-                "persona_background": persona.background
+                "persona_background": persona.background,
             }
             for persona in personas
         ]
-
+        # 質問をバッチ処理で生成
         return question_chain.batch(question_queries)
 
     def _generate_answers(
-            self, personas: List[Persona], questions: List[str]
-    ) -> List[str]:
+        self, personas: list[Persona], questions: list[str]
+    ) -> list[str]:
+        # 回答生成のためのプロンプトを定義
         answer_prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "You need to answer as following persona: {persona_name} - {persona_background}",
+                    "あなたは以下のペルソナとして回答しています: {persona_name} - {persona_background}",
                 ),
-                (
-                    "human",
-                    "Question: {question}",
-                )
+                ("human", "質問: {question}"),
             ]
         )
-
+        # 回答生成のためのチェーンを作成
         answer_chain = answer_prompt | self.llm | StrOutputParser()
 
+        # 各ペルソナに対する回答クエリを作成
         answer_queries = [
             {
                 "persona_name": persona.name,
                 "persona_background": persona.background,
-                "question": question
+                "question": question,
             }
             for persona, question in zip(personas, questions)
         ]
-
+        # 回答をバッチ処理で生成
         return answer_chain.batch(answer_queries)
 
     def _create_interviews(
-            self, personas: List[Persona], questions: List[str], answers: List[str]
-    ) -> List[Interview]:
+        self, personas: list[Persona], questions: list[str], answers: list[str]
+    ) -> list[Interview]:
+        # ペルソナ毎に質問と回答の組み合わせからインタビューオブジェクトを作成
         return [
             Interview(persona=persona, question=question, answer=answer)
             for persona, question, answer in zip(personas, questions, answers)
