@@ -33,7 +33,7 @@ class InformationEvaluator:
                 ),
                 (
                     "human",
-                    "以下の行動提案リストについて、ユーザーにとって十分に実行可能で有用か評価してください。"
+                    "以下の行動提案リストについて、ユーザーにとって十分に実行可能で、行動可能性が高いか、有用かどうか評価してください。"
                     " true/false で is_sufficient を出力し、その理由をreason に記述してください。\n\n"
                     "提案リスト: {recommendations}",
                 ),
