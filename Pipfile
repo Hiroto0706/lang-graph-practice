@@ -4,8 +4,12 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+python-dotenv = "*"
+langchain-core = "*"
+langchain-openai = "*"
+langgraph = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.13"
+python_version = "3.12"
